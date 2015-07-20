@@ -10,6 +10,7 @@ import "fmt"
 import "log"
 import "os"
 import "path/filepath"
+import "time"
 import "github.com/bitly/go-simplejson"
 
 func processEvent(event string) {
@@ -24,8 +25,6 @@ func processEvent(event string) {
 		user_result := results[user_id]
 		user_result.ItemCount += item_count
 		user_result.TotalSpent += amount
-        } else {
-		panic(err)
 	}
 }
 
@@ -37,8 +36,13 @@ type UserResult struct {
 var results map[string]*UserResult = make(map[string]*UserResult)
 
 func main() {
-    //queryPtr := flag.String("query", "", "the query to run")
+    startPtr := flag.Int64("start", 0, "Start date (in seconds)")
+    endPtr := flag.Int64("end", time.Now().Unix(), "End date (in seconds)")
     flag.Parse()
+    startTm := time.Unix(*startPtr, 0)
+    endTm := time.Unix(*endPtr, 0)
+    startFile := GenerateFileName(startTm)
+    endFile := GenerateFileName(endTm)
     dirname := "data" + string(filepath.Separator)
 
      d, err := os.Open(dirname)
@@ -55,30 +59,29 @@ func main() {
          os.Exit(1)
      }
 
-     for _, f := range files {
-	  if file, err := os.Open(dirname + f.Name()); err == nil {
+    for _, f := range files {
+        if startFile <= f.Name() && f.Name() <= endFile {
+            if file, err := os.Open(dirname + f.Name()); err == nil {
+                scanner := bufio.NewScanner(file)
+                for scanner.Scan() {
+                    processEvent(scanner.Text())
+                }
 
-	    scanner := bufio.NewScanner(file)
-	    for scanner.Scan() {
-		processEvent(scanner.Text())
-	    }
+                if err = scanner.Err(); err != nil {
+                    log.Fatal(err)
+                }
 
-	    // check for errors
-	    if err = scanner.Err(); err != nil {
-	      log.Fatal(err)
-	    }
-
-	    file.Close()
-	  } else {
-	    log.Fatal(err)
-	  }
-     }
-
-     resultsJson, err := json.Marshal(results)
-     if err == nil {
-	fmt.Println(string(resultsJson))
-     } else {
-	panic(err)
-     }
+                file.Close()
+            } else {
+                log.Fatal(err)
+            }
+        }
+    }
+    resultsJson, err := json.Marshal(results)
+    if err == nil {
+        fmt.Println(string(resultsJson))
+    } else {
+	    panic(err)
+    }
 }
 

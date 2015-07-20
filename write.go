@@ -42,7 +42,7 @@ func writeAction(action string) {
 		actionJson, err := simplejson.NewJson([]byte(action))
 		ts, _ := actionJson.Get("_ts").Int()
 		t := time.Unix(int64(ts), 0)
-		file := fmt.Sprintf("data/%d-%02d-%02dT%02d", t.Year(), t.Month(), t.Day(), t.Hour())
+		file := fmt.Sprintf("data/%s", GenerateFileName(t))
 		if _, err := os.Stat(file); err != nil {
 			_, err := os.Create(file)
 			if err != nil {
