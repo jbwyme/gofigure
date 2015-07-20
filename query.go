@@ -46,6 +46,7 @@ func main() {
          fmt.Println(err)
          os.Exit(1)
      }
+
      defer d.Close()
 
      files, err := d.Readdir(-1)
@@ -57,8 +58,6 @@ func main() {
      for _, f := range files {
 	  if file, err := os.Open(dirname + f.Name()); err == nil {
 
-	    defer file.Close()
-
 	    scanner := bufio.NewScanner(file)
 	    for scanner.Scan() {
 		processEvent(scanner.Text())
@@ -69,6 +68,7 @@ func main() {
 	      log.Fatal(err)
 	    }
 
+	    file.Close()
 	  } else {
 	    log.Fatal(err)
 	  }
