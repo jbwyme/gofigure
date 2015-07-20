@@ -15,7 +15,7 @@ import "github.com/bitly/go-simplejson"
 func processEvent(event string) {
 	if event_json, err := simplejson.NewJson([]byte(event)); err == nil {
 		user_id, _ := event_json.Get("user_id").String()
-		item_count, _ := event_json.Get("item_count").Int();
+		item_count, _ := event_json.Get("total_item_count").Int();
 		amount, _ := event_json.Get("amount").Float64();
 		_, ok := results[user_id]
 		if !ok {
