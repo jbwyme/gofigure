@@ -23,6 +23,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 func Write(w http.ResponseWriter, r *http.Request) {
     out, err := exec.Command("go", "run", "utils.go", "write.go", "--data", r.URL.Query()["data"][0]).CombinedOutput()
+    w.Header().Set("Access-Control-Allow-Origin", "*")
     if err == nil {
         fmt.Fprintf(w, "1")
     } else {
@@ -40,6 +41,7 @@ func Query(w http.ResponseWriter, r *http.Request) {
         args = append(args, "--end", end[0])
     }
     out, err := exec.Command("go", args...).CombinedOutput()
+    w.Header().Set("Access-Control-Allow-Origin", "*")
     if err == nil {
         fmt.Fprintf(w, string(out))
     } else {
