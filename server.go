@@ -22,7 +22,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func Write(w http.ResponseWriter, r *http.Request) {
-    out, err := exec.Command("go", "run", "utils.go", "write.go", "--data", r.URL.Query()["data"][0]).Output()
+    out, err := exec.Command("go", "run", "utils.go", "write.go", "--data", r.URL.Query()["data"][0]).CombinedOutput()
     if err == nil {
         fmt.Fprintf(w, "1")
     } else {
@@ -31,7 +31,15 @@ func Write(w http.ResponseWriter, r *http.Request) {
 }
 
 func Query(w http.ResponseWriter, r *http.Request) {
-    out, err := exec.Command("go", "run", "utils.go", "query.go").Output()
+    params := r.URL.Query()
+    args := []string{"run", "utils.go", "query.go"}
+    if start, ok := params["start"]; ok {
+        args = append(args, "--start", start[0])
+    }
+    if end, ok := params["end"]; ok {
+        args = append(args, "--end", end[0])
+    }
+    out, err := exec.Command("go", args...).CombinedOutput()
     if err == nil {
         fmt.Fprintf(w, string(out))
     } else {
