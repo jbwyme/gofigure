@@ -6,38 +6,34 @@ package main
 import "flag"
 import "fmt"
 import "os"
-import "strings"
 import "time"
 import "github.com/bitly/go-simplejson"
 
 func main() {
-	dataPtr := flag.String("data", "", "the data to write")
-	flag.Parse()
-	t := time.Now()
-	filename := fmt.Sprintf("%d-%02d-%02dT%02d", t.Year(), t.Month(), t.Day(), t.Hour())
-	validateEvent(*dataPtr)
-	appendToFile(fmt.Sprintf("data/%s", filename), *dataPtr)
-}
+        dataPtr := flag.String("data", "", "the data to write")
+        flag.Parse()
+	data := *dataPtr
+	if actionJson, err := simplejson.NewJson([]byte(data)); err != nil {
+                panic(err)
+        } else {
+		ts, _ := actionJson.Get("_ts").Int()
+		t := time.Unix(int64(ts), 0)
+		file := fmt.Sprintf("data/%d-%02d-%02dT%02d", t.Year(), t.Month(), t.Day(), t.Hour())
+		if _, err := os.Stat(file); err != nil {
+			_, err := os.Create(file)
+			if err != nil {
+				panic(err)
+			}
+		}
 
-func validateEvent(data string) {
-	if _, err := simplejson.NewJson([]byte(data)); err != nil {
-		panic(err)
+		f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+		    panic(err)
+		}
+
+		defer f.Close()
+		if _, err = f.WriteString(data + "\n"); err != nil {
+		    panic(err)
+		}	
 	}
-}
-
-func appendToFile(file string, data string) {
-	if _, err := os.Stat(file); err != nil {
-		os.Create(file)
-	}
-
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-	    panic(err)
-	}
-
-	defer f.Close()
-	s := []string{data, "\n"};
-	if _, err = f.WriteString(strings.Join(s, "")); err != nil {
-	    panic(err)
-	}	
 }
