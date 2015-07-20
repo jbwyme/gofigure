@@ -77,6 +77,13 @@ func main() {
             }
         }
     }
+    
+    for id, user := range results {
+        if user.ItemCount < 10 || user.TotalSpent < 300 {
+            delete(results, id)
+        }
+    }
+
     resultsJson, err := json.Marshal(results)
     if err == nil {
         fmt.Println(string(resultsJson))
