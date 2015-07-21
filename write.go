@@ -11,12 +11,12 @@ import "time"
 import "github.com/bitly/go-simplejson"
 
 func main() {
-        dataPtr := flag.String("data", "", "the data to write")
-        flag.Parse()
+    dataPtr := flag.String("data", "", "the data to write")
+    flag.Parse()
 	data := *dataPtr
 	if actionJson, err := simplejson.NewJson([]byte(data)); err != nil {
-                panic(err)
-        } else {
+        panic(err)
+    } else {
 		actionArr, err := actionJson.Array()
 		if err == nil {
 			for _, action := range actionArr {
