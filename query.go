@@ -3,6 +3,7 @@ package main
 // Go provides a `flag` package supporting basic
 // command-line flag parsing. We'll use this package to
 // implement our example command-line program.
+import "bytes"
 import "bufio"
 import "encoding/json"
 import "flag"
@@ -13,29 +14,68 @@ import "path/filepath"
 import "time"
 import "github.com/bitly/go-simplejson"
 
-func processEvent(event string) {
+var mapped []map[string]interface{} = make([]map[string]interface{}, 0)
+var reduced map[string]map[string]interface{} = make(map[string]map[string]interface{})
+
+func _map(event string, mapper MapStatement) {
 	if event_json, err := simplejson.NewJson([]byte(event)); err == nil {
-		user_id, _ := event_json.Get("user_id").String()
-		item_count, _ := event_json.Get("total_item_count").Int();
-		amount, _ := event_json.Get("amount").Float64();
-		_, ok := results[user_id]
-		if !ok {
-			results[user_id] = new(UserResult)
-		}
-		user_result := results[user_id]
-		user_result.ItemCount += item_count
-		user_result.TotalSpent += amount
+        var row map[string]interface{} = make(map[string]interface{})
+        for _, field := range mapper.Fields {
+            val := event_json.Get(field)
+            row[field] = val.Interface()
+        }
+
+        var match bool = true
+        for _, condition := range mapper.Conditions {
+            if left, err := event_json.Get(condition.left).Float64(); err != nil {
+                //panic(err)
+            } else {
+                op := condition.op
+                right := condition.right
+                switch op {
+                case GT:
+                    if !(left > right) {
+                        match = false
+                    }
+                    break
+                case EQ:
+                    if !(left == right) {
+                        match = false
+                    }
+                    break
+                }
+            }
+        }
+        if match {
+            mapped = append(mapped, row)
+        }
 	}
 }
 
-type UserResult struct {
-	ItemCount int
-	TotalSpent float64
+func _reduce(reducer ReduceStatement) {
+    for _, row := range mapped {
+        key_val, ok := row[reducer.Key].(string)
+        if ok {
+            if _, ok := reduced[key_val]; !ok {
+                reduced[key_val] = make(map[string]interface{})
+            }
+            for field, val := range row {
+                if _, ok := reduced[key_val][field]; !ok {
+                    reduced[key_val][field] = float64(0)
+                }
+                if iVal, ok := val.(json.Number); ok {
+                    if fVal, err := iVal.Float64(); err == nil {
+                        reduced[key_val][field] = reduced[key_val][field].(float64) + fVal
+                    }
+                }
+            }    
+        }
+    }
+    fmt.Printf("%s", reduced)
 }
 
-var results map[string]*UserResult = make(map[string]*UserResult)
-
 func main() {
+    queryPtr := flag.String("query", "", "Query to run. E.g. \"MAP field_1, field_2 REDUCE ON field_1\"")
     startPtr := flag.Int64("start", 0, "Start date (in seconds)")
     endPtr := flag.Int64("end", time.Now().Unix(), "End date (in seconds)")
     flag.Parse()
@@ -44,6 +84,13 @@ func main() {
     startFile := GenerateFileName(startTm)
     endFile := GenerateFileName(endTm)
     dirname := "data" + string(filepath.Separator)
+
+    query := bytes.NewBufferString(*queryPtr)
+    p := NewParser(query)
+    mapper, reducer, err := p.Parse()
+    if err != nil {
+        panic(err)
+    }
 
      d, err := os.Open(dirname)
      if err != nil {
@@ -64,7 +111,7 @@ func main() {
             if file, err := os.Open(dirname + f.Name()); err == nil {
                 scanner := bufio.NewScanner(file)
                 for scanner.Scan() {
-                    processEvent(scanner.Text())
+                    _map(scanner.Text(), *mapper)
                 }
 
                 if err = scanner.Err(); err != nil {
@@ -77,18 +124,7 @@ func main() {
             }
         }
     }
-    
-    for id, user := range results {
-        if user.ItemCount < 10 || user.TotalSpent < 300 {
-            delete(results, id)
-        }
-    }
 
-    resultsJson, err := json.Marshal(results)
-    if err == nil {
-        fmt.Println(string(resultsJson))
-    } else {
-	    panic(err)
-    }
+    _reduce(*reducer) 
 }
 
