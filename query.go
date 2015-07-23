@@ -12,40 +12,102 @@ import "log"
 import "os"
 import "path/filepath"
 import "time"
-import "github.com/bitly/go-simplejson"
 
 var mapped []map[string]interface{} = make([]map[string]interface{}, 0)
-var reduced map[string]map[string]interface{} = make(map[string]map[string]interface{})
+var reduced map[string]map[string][]interface{} = make(map[string]map[string][]interface{})
+
+func _eval(event map[string]interface{}, condition Condition) bool {
+    if condition.left.NodeType == TYPE_PROPERTY {
+        condition.left = evalPropertyNode(event, condition.left)
+    }
+    
+    if condition.right.NodeType == TYPE_PROPERTY {
+        condition.right = evalPropertyNode(event, condition.right)
+    }
+
+    if condition.left.NodeType == TYPE_NIL {
+        condition.left.NodeType = condition.right.NodeType
+    }
+
+    if condition.right.NodeType == TYPE_NIL {
+        condition.right.NodeType = condition.left.NodeType
+    }
+
+    op := condition.op
+    switch(condition.left.NodeType) {
+    case TYPE_INT:
+        left := condition.left.IntVal
+        switch (condition.right.NodeType) {
+        case TYPE_INT:
+            right := condition.right.IntVal
+            return compareIntToInt(left, right, op)
+        case TYPE_FLOAT:
+            right := condition.right.FloatVal
+            return compareIntToFloat(left, right, op)
+        case TYPE_STRING:
+            right := condition.right.StringVal
+            return compareIntToString(left, right, op)
+        }            
+    case TYPE_FLOAT:
+        left := condition.left.FloatVal
+        switch (condition.right.NodeType) {
+        case TYPE_INT:
+            right := condition.right.IntVal
+            return compareFloatToInt(left, right, op)
+        case TYPE_FLOAT:
+            right := condition.right.FloatVal
+            return compareFloatToFloat(left, right, op)
+        case TYPE_STRING:
+            right := condition.right.StringVal
+            return compareFloatToString(left, right, op)
+        }            
+    case TYPE_STRING:
+        left := condition.left.StringVal
+        switch (condition.right.NodeType) {
+        case TYPE_INT:
+            right := condition.right.IntVal
+            return compareStringToInt(left, right, op)
+        case TYPE_FLOAT:
+            right := condition.right.FloatVal
+            return compareStringToFloat(left, right, op)
+        case TYPE_STRING:
+            right := condition.right.StringVal
+            return compareStringToString(left, right, op)
+        }
+    }
+    panic("NodeType not supported")
+}
+
+func evalPropertyNode(event map[string]interface{}, node EvalNode) EvalNode {
+    val := event[node.StringVal]
+    if val == nil {
+        return EvalNode{NodeType: TYPE_NIL}
+    } else if intVal, ok := val.(int); ok {
+        return EvalNode{NodeType: TYPE_INT, IntVal: intVal}
+    } else if floatVal, ok := val.(float64); ok {
+        return EvalNode{NodeType: TYPE_FLOAT, FloatVal: floatVal}
+    } else if strVal, ok := val.(string); ok {
+        return EvalNode{NodeType: TYPE_STRING, StringVal: strVal}
+    } else {
+        fmt.Println("Property value didn't match any types")
+        return node
+    } 
+}
 
 func _map(event string, mapper MapStatement) {
-	if event_json, err := simplejson.NewJson([]byte(event)); err == nil {
+    var event_json map[string]interface{}
+	if err := json.Unmarshal([]byte(event), &event_json); err == nil {
         var row map[string]interface{} = make(map[string]interface{})
         for _, field := range mapper.Fields {
-            val := event_json.Get(field)
-            row[field] = val.Interface()
+            row[field] = event_json[field]
         }
 
         var match bool = true
         for _, condition := range mapper.Conditions {
-            if left, err := event_json.Get(condition.left).Float64(); err != nil {
-                //panic(err)
-            } else {
-                op := condition.op
-                right := condition.right
-                switch op {
-                case GT:
-                    if !(left > right) {
-                        match = false
-                    }
-                    break
-                case EQ:
-                    if !(left == right) {
-                        match = false
-                    }
-                    break
-                }
+            if !_eval(event_json, condition) {
+                match = false
             }
-        }
+        } 
         if match {
             mapped = append(mapped, row)
         }
@@ -57,21 +119,18 @@ func _reduce(reducer ReduceStatement) {
         key_val, ok := row[reducer.Key].(string)
         if ok {
             if _, ok := reduced[key_val]; !ok {
-                reduced[key_val] = make(map[string]interface{})
+                reduced[key_val] = make(map[string][]interface{})
             }
             for field, val := range row {
-                if _, ok := reduced[key_val][field]; !ok {
-                    reduced[key_val][field] = float64(0)
-                }
-                if iVal, ok := val.(json.Number); ok {
-                    if fVal, err := iVal.Float64(); err == nil {
-                        reduced[key_val][field] = reduced[key_val][field].(float64) + fVal
+                if field != reducer.Key {
+                    if _, ok := reduced[key_val][field]; !ok {
+                        reduced[key_val][field] = make([]interface{}, 0)
                     }
+                    reduced[key_val][field] = append(reduced[key_val][field], val)
                 }
             }    
         }
     }
-    fmt.Printf("%s", reduced)
 }
 
 func main() {
@@ -124,7 +183,20 @@ func main() {
             }
         }
     }
-
-    _reduce(*reducer) 
+    
+    if reducer.Key == "" {
+        if resultStr, err := json.Marshal(mapped); err != nil {
+            panic(err)
+        } else {
+            fmt.Printf("%s", resultStr)
+        }
+    } else {
+        _reduce(*reducer) 
+        if resultStr, err := json.Marshal(reduced); err != nil {
+            panic(err)
+        } else {
+            fmt.Printf("%s", resultStr)
+        }
+    }
 }
 

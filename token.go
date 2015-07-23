@@ -10,8 +10,16 @@ const (
     WS
 
     // Literals
-    FIELD 
+    STRING
     NUMBER
+    IDENT
+    
+    // Types
+    TYPE_INT
+    TYPE_NIL
+    TYPE_STRING
+    TYPE_FLOAT
+    TYPE_PROPERTY
 
     // Operators
     ADD         // +
@@ -19,6 +27,7 @@ const (
     MULTIPLY    // *
     DIVIDE      // /
     EQ          // =
+    NOT_EQ      // !=
     GT          // >
     LT          // <
     GTE         // >=

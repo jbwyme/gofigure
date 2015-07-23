@@ -33,7 +33,7 @@ func Write(w http.ResponseWriter, r *http.Request) {
 
 func Query(w http.ResponseWriter, r *http.Request) {
     params := r.URL.Query()
-    args := []string{"run", "utils.go", "query.go"}
+    args := []string{"run", "comparison.go", "scanner.go", "parser.go", "token.go", "utils.go", "query.go"}
     if start, ok := params["start"]; ok {
         args = append(args, "--start", start[0])
     }

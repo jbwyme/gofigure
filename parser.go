@@ -1,15 +1,23 @@
 package main
 
 import (
+    "errors"
     "fmt"
     "io"
     "strconv"
 )
 
+type EvalNode struct {
+    NodeType    Token
+    IntVal      int
+    FloatVal    float64
+    StringVal   string
+}
+
 type Condition struct {
-    left    string
+    left    EvalNode
     op      Token
-    right   float64
+    right   EvalNode
 }
 
 type MapStatement struct {
@@ -37,6 +45,40 @@ func NewParser(r io.Reader) *Parser {
     return &Parser{s: NewScanner(r)}
 }
 
+func createEvalNode(nodeType Token, val string) EvalNode {
+    n := EvalNode{NodeType: nodeType}
+    switch(n.NodeType) {
+    case TYPE_STRING, TYPE_PROPERTY:
+        n.StringVal = val
+    case TYPE_INT:
+        if v, err := strconv.Atoi(val); err != nil {
+            panic(err)
+        } else {
+            n.IntVal = v
+        }
+    case TYPE_FLOAT:
+        if v, err := strconv.ParseFloat(val, 64); err != nil {
+            panic(err)
+        } else {
+            n.FloatVal = v
+        }
+    }
+    return n
+}
+
+func tokenToEvalNode(tok Token, lit string) (EvalNode, error) {
+    switch tok {
+    case NUMBER:
+        return createEvalNode(TYPE_FLOAT, lit), nil
+    case STRING:
+        return createEvalNode(TYPE_STRING, lit), nil
+    case IDENT:
+        return createEvalNode(TYPE_PROPERTY, lit), nil
+    default:
+        return EvalNode{}, errors.New(fmt.Sprintf("Unable to determine type of EvalNode to created for '%s'", lit)) 
+    }
+}
+
 // Parse parses a MAP REDUCE statement.
 func (p *Parser) Parse() (*MapStatement, *ReduceStatement, error) {
     ms := &MapStatement{}
@@ -51,7 +93,7 @@ func (p *Parser) Parse() (*MapStatement, *ReduceStatement, error) {
     for {
         // Read a field.
         tok, lit := p.scanIgnoreWhitespace()
-        if tok != FIELD {
+        if tok != IDENT {
             return nil, nil, fmt.Errorf("found %q, expected field", lit)
         }
         ms.Fields = append(ms.Fields, lit)
@@ -71,29 +113,29 @@ func (p *Parser) Parse() (*MapStatement, *ReduceStatement, error) {
 
             // Read a left side of condition
             tok, lit := p.scanIgnoreWhitespace()
-            if tok != FIELD {
-                return nil, nil, fmt.Errorf("found %q, expected field", lit)
+            l, err := tokenToEvalNode(tok, lit) 
+            if err != nil {
+                return nil, nil, err
+            } else {
+                condition.left = l
             }
-            condition.left = lit
 
             // Read operator
             tok, lit = p.scanIgnoreWhitespace()
-            if !(tok == GT || tok == EQ) {
+            if !(tok == GT || tok == GTE || tok == EQ || tok == NOT_EQ || tok == LT || tok == LTE) {
                 return nil, nil, fmt.Errorf("found %q, expected operator", lit)
             }
             condition.op = tok
     
             // Read operand
             tok, lit = p.scanIgnoreWhitespace()
-            if tok != NUMBER {
-                return nil, nil, fmt.Errorf("found %q, expected operand", lit)
-            }
-            if i, err := strconv.ParseFloat(lit, 64); err != nil {
-                return nil, nil, fmt.Errorf("operand must be type Float", lit)
+            r, err := tokenToEvalNode(tok, lit) 
+            if err != nil {
+                return nil, nil, err
             } else {
-                condition.right = i
+                condition.right = r
             }
-            
+
             ms.Conditions = append(ms.Conditions, condition)
    
             if tok, _ := p.scanIgnoreWhitespace(); tok != AND {
@@ -106,21 +148,24 @@ func (p *Parser) Parse() (*MapStatement, *ReduceStatement, error) {
     }
 
     // Next we should see the "REDUCE" keyword.
-    if tok, lit := p.scanIgnoreWhitespace(); tok != REDUCE {
-        return nil, nil, fmt.Errorf("found %q, expected REDUCE", lit)
-    }
-    
-    // Next we should see the "ON" keyword.
-    if tok, lit := p.scanIgnoreWhitespace(); tok != ON {
-        return nil, nil, fmt.Errorf("found %q, expected ON", lit)
-    }
-
-    // Finally we should read the reduce key.
     tok, lit := p.scanIgnoreWhitespace()
-    if tok != FIELD {
-        return nil, nil, fmt.Errorf("found %q, expected reduce key", lit)
+    if tok != EOF {
+        if tok != REDUCE { 
+            return nil, nil, fmt.Errorf("found %q, expected REDUCE", lit)
+        }
+        
+        // Next we should see the "ON" keyword.
+        if tok, lit := p.scanIgnoreWhitespace(); tok != ON {
+            return nil, nil, fmt.Errorf("found %q, expected ON", lit)
+        }
+
+        // Finally we should read the reduce key.
+        tok, lit := p.scanIgnoreWhitespace()
+        if tok != IDENT {
+            return nil, nil, fmt.Errorf("found %q, expected reduce key", lit)
+        }
+        rs.Key = lit
     }
-    rs.Key = lit
 
     // Return the successfully parsed statement.
     return ms, rs, nil

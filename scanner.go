@@ -108,13 +108,15 @@ func (s *Scanner) scanToken() (tok Token, lit string) {
         return GTE, buf.String()
     case "=":
         return EQ, buf.String()
+    case "!=":
+        return NOT_EQ, buf.String()
     }
 
-    // Check for string literal
-    var field string = buf.String()
-    if field[0] == '"' && field[len(field)-1] == '"' {
-        field = field[1:len(field)-1]
-        return FIELD, field
+    // Check for string literal or ident
+    var str string = buf.String()
+    if str[0] == '"' && str[len(str)-1] == '"' {
+        str = str[1:len(str)-1]
+        return STRING, str
     }
 
     // Check for number
@@ -122,7 +124,7 @@ func (s *Scanner) scanToken() (tok Token, lit string) {
         return NUMBER, buf.String()
     }
 
-    return ILLEGAL, buf.String()
+    return IDENT, buf.String()
 }
 
 // read reads the next rune from the bufferred reader.
@@ -150,7 +152,7 @@ func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 func isOperator(ch rune) bool { return (ch == '<' || ch == '>' || ch == '=' || ch == '+' || ch == '-' || ch == '/' || ch == '*') }
 
 func isValidCh(ch rune) bool { 
-    return isWhitespace(ch) || isLetter(ch) || isDigit(ch) || isOperator(ch) || ch == '_' || ch == '"'
+    return isWhitespace(ch) || isLetter(ch) || isDigit(ch) || isOperator(ch) || ch == '_' || ch == '"' || ch == '.' || ch == '@' || ch == '!'
 }
 
 // eof represents a marker rune for the end of the reader.
