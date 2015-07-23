@@ -34,6 +34,12 @@ func Write(w http.ResponseWriter, r *http.Request) {
 func Query(w http.ResponseWriter, r *http.Request) {
     params := r.URL.Query()
     args := []string{"run", "comparison.go", "scanner.go", "parser.go", "token.go", "utils.go", "query.go"}
+    if query, ok := params["query"]; ok {
+        args = append(args, "--query", query[0])
+    } else {
+        fmt.Fprintf(w, "'query' param required")
+        return
+    }
     if start, ok := params["start"]; ok {
         args = append(args, "--start", start[0])
     }
