@@ -20,6 +20,7 @@ const (
     TYPE_STRING
     TYPE_FLOAT
     TYPE_PROPERTY
+    TYPE_LIST
 
     // Operators
     ADD         // +
@@ -34,6 +35,9 @@ const (
     LTE         // <=
     AND         // and
 
+    // Aggregate methods
+    SUM
+
     // Misc characters
     COMMA    // ,
 
@@ -44,3 +48,4 @@ const (
     WHERE
     IN
 )
+

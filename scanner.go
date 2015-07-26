@@ -94,6 +94,10 @@ func (s *Scanner) scanToken() (tok Token, lit string) {
         return WHERE, buf.String()
     case "AND":
         return AND, buf.String()
+    case "IN":
+        return IN, buf.String()
+    case "SUM":
+        return SUM, buf.String()
     }
 
     // Match operators
