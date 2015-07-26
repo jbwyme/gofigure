@@ -37,23 +37,23 @@ type Field struct {
 	ListVal   []interface{}
 }
 
-func (f Field) GetVal() interface{} {
+func (f *Field) GetVal() interface{} {
 	return f.Val
 }
 
-func (f Field) SetVal(v interface{}) {
+func (f *Field) SetVal(v interface{}) {
 	f.Val = v
 }
 
-func (f Field) GetType() Token {
+func (f *Field) GetType() Token {
 	return f.Type
 }
 
-func (f Field) SetType(t Token) {
+func (f *Field) SetType(t Token) {
 	f.Type = t
 }
 
-func (f Field) GetName() string {
+func (f *Field) GetName() string {
 	return f.Name
 }
 
@@ -124,8 +124,8 @@ func NewParser(r io.Reader) *Parser {
 	return &Parser{s: NewScanner(r)}
 }
 
-func createField(fieldType Token, name string) Field {
-	n := Field{Type: fieldType, Name: name}
+func createField(fieldType Token, name string) *Field {
+	n := &Field{Type: fieldType, Name: name}
 	switch n.Type {
 	case TYPE_STRING, TYPE_PROPERTY:
 		n.StringVal = name
@@ -145,7 +145,7 @@ func createField(fieldType Token, name string) Field {
 	return n
 }
 
-func tokenToField(tok Token, lit string) (Field, error) {
+func tokenToField(tok Token, lit string) (*Field, error) {
 	switch tok {
 	case NUMBER:
 		return createField(TYPE_FLOAT, lit), nil
@@ -154,7 +154,7 @@ func tokenToField(tok Token, lit string) (Field, error) {
 	case IDENT:
 		return createField(TYPE_PROPERTY, lit), nil
 	default:
-		return Field{}, errors.New(fmt.Sprintf("Unable to determine type of Field to created for '%s'", lit))
+		return &Field{}, errors.New(fmt.Sprintf("Unable to determine type of Field to created for '%s'", lit))
 	}
 }
 
@@ -162,7 +162,7 @@ func (p *Parser) parseField(stmt IStatement) (IField, error) {
 	tok, field := p.scanIgnoreWhitespace()
 	if tok == SUM {
 		if targetField, err := p.parseField(stmt); err == nil {
-			return Aggregator{Field: Field{Name: targetField.GetName()}, Method: AGG_SUM, Target: targetField}, nil
+			return &Aggregator{Field: Field{Name: targetField.GetName()}, Method: AGG_SUM, Target: targetField}, nil
 		} else {
 			return nil, err
 		}
@@ -171,7 +171,7 @@ func (p *Parser) parseField(stmt IStatement) (IField, error) {
 		tok, _ = p.scanIgnoreWhitespace()
 		if tok == IN {
 			if collectionField, err := p.parseField(stmt); err == nil {
-				return FieldItr{Field: fieldNode, Collection: collectionField, Operator: OP_IN}, nil
+				return &FieldItr{Field: *fieldNode, Collection: collectionField, Operator: OP_IN}, nil
 			} else {
 				return nil, err
 			}
@@ -205,6 +205,45 @@ func (p *Parser) parseFields(stmt IStatement) error {
 	return nil
 }
 
+func (p *Parser) parseWhere(stmt IStatement) error {
+	for {
+		condition := Condition{}
+
+		// Read a left side of condition
+		tok, lit := p.scanIgnoreWhitespace()
+		l, err := tokenToField(tok, lit)
+		if err != nil {
+			return err
+		} else {
+			condition.left = l
+		}
+
+		// Read operator
+		tok, lit = p.scanIgnoreWhitespace()
+		if !(tok == GT || tok == GTE || tok == EQ || tok == NOT_EQ || tok == LT || tok == LTE) {
+			return fmt.Errorf("found %q, expected operator", lit)
+		}
+		condition.op = tok
+
+		// Read operand
+		tok, lit = p.scanIgnoreWhitespace()
+		r, err := tokenToField(tok, lit)
+		if err != nil {
+			return err
+		} else {
+			condition.right = r
+		}
+
+		stmt.AddCondition(condition)
+
+		if tok, _ := p.scanIgnoreWhitespace(); tok != AND {
+			p.unscan()
+			break
+		}
+	}
+	return nil
+}
+
 // Parse parses a MAP REDUCE statement.
 func (p *Parser) Parse() (*Statement, *ReduceStatement, error) {
 	ms := &Statement{}
@@ -222,42 +261,7 @@ func (p *Parser) Parse() (*Statement, *ReduceStatement, error) {
 
 	// Check for conditionals in MAP
 	if tok, _ := p.scan(); tok == WHERE {
-		// Next we should loop over conditions
-		for {
-			condition := Condition{}
-
-			// Read a left side of condition
-			tok, lit := p.scanIgnoreWhitespace()
-			l, err := tokenToField(tok, lit)
-			if err != nil {
-				return nil, nil, err
-			} else {
-				condition.left = l
-			}
-
-			// Read operator
-			tok, lit = p.scanIgnoreWhitespace()
-			if !(tok == GT || tok == GTE || tok == EQ || tok == NOT_EQ || tok == LT || tok == LTE) {
-				return nil, nil, fmt.Errorf("found %q, expected operator", lit)
-			}
-			condition.op = tok
-
-			// Read operand
-			tok, lit = p.scanIgnoreWhitespace()
-			r, err := tokenToField(tok, lit)
-			if err != nil {
-				return nil, nil, err
-			} else {
-				condition.right = r
-			}
-
-			ms.Conditions = append(ms.Conditions, condition)
-
-			if tok, _ := p.scanIgnoreWhitespace(); tok != AND {
-				p.unscan()
-				break
-			}
-		}
+		p.parseWhere(ms)
 	} else {
 		p.unscan()
 	}
@@ -271,6 +275,13 @@ func (p *Parser) Parse() (*Statement, *ReduceStatement, error) {
 
 		if err := p.parseFields(rs); err != nil {
 			return nil, nil, err
+		}
+
+		// Check for conditionals in REDUCE
+		if tok, _ := p.scan(); tok == WHERE {
+			p.parseWhere(rs)
+		} else {
+			p.unscan()
 		}
 
 		if tok, lit := p.scanIgnoreWhitespace(); tok != ON {

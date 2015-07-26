@@ -17,29 +17,6 @@ import "time"
 var mapped []map[string]interface{} = make([]map[string]interface{}, 0)
 var reduced map[string]map[string]interface{} = make(map[string]map[string]interface{})
 
-// func gate(row map[string]interface{}, agg *AggregateFunction) interface{} {
-//     if collection, ok := row[agg.Collection].([]interface{}); ok {
-//         switch(agg.Method) {
-//         case SUM:
-//             var sum float64 = 0
-//             for _, entry := range collection {
-//                 if entryInt, ok := entry.(int); ok {
-//                     sum += float64(entryInt)
-//                 } else if entryFloat, ok := entry.(float64); ok {
-//                     sum += entryFloat
-//                 } else {
-//                     fmt.Printf("%s is not an int or float", entry)
-//                 }
-//             }
-//             return sum
-//         default:
-//             panic(fmt.Sprintf("No aggregate method found for %d", agg.Method))
-//         }
-//     } else {
-//         panic("Target must be a list for aggregate functions")
-//     }
-// }
-
 func pluck(prop string, collection []interface{}) []interface{} {
 	var res []interface{} = make([]interface{}, 0)
 	for _, entry := range collection {
@@ -69,15 +46,15 @@ func _eval(event map[string]interface{}, condition Condition) bool {
 		condition.right.SetType(condition.left.GetType())
 	}
 
-	var l Field
-	if val, ok := condition.left.(Field); ok {
+	var l *Field
+	if val, ok := condition.left.(*Field); ok {
 		l = val
 	} else {
 		panic("left field is not a field")
 	}
 
-	var r Field
-	if val, ok := condition.right.(Field); ok {
+	var r *Field
+	if val, ok := condition.right.(*Field); ok {
 		r = val
 	} else {
 		panic("left field is not a field")
@@ -125,12 +102,13 @@ func _eval(event map[string]interface{}, condition Condition) bool {
 			return compareStringToString(left, right, op)
 		}
 	}
-	panic("Type not supported")
+	panic(fmt.Sprintf("Type %d not supported\n", l.GetType()))
 }
 
-func evalPropertyNode(event map[string]interface{}, node IField) Field {
-	var f Field
-	if field, ok := node.(Field); ok {
+// could probably remove this in favor of evalField
+func evalPropertyNode(event map[string]interface{}, node IField) *Field {
+	var f *Field
+	if field, ok := node.(*Field); ok {
 		f = field
 	} else {
 		panic("node is not Field")
@@ -138,30 +116,30 @@ func evalPropertyNode(event map[string]interface{}, node IField) Field {
 
 	val := event[f.StringVal]
 	if val == nil {
-		return Field{Type: TYPE_NIL}
+		return &Field{Type: TYPE_NIL}
 	} else if intVal, ok := val.(int); ok {
-		return Field{Type: TYPE_INT, IntVal: intVal}
+		return &Field{Type: TYPE_INT, IntVal: intVal}
 	} else if floatVal, ok := val.(float64); ok {
-		return Field{Type: TYPE_FLOAT, FloatVal: floatVal}
+		return &Field{Type: TYPE_FLOAT, FloatVal: floatVal}
 	} else if strVal, ok := val.(string); ok {
-		return Field{Type: TYPE_STRING, StringVal: strVal}
+		return &Field{Type: TYPE_STRING, StringVal: strVal}
 	} else if listVal, ok := val.([]interface{}); ok {
-		return Field{Type: TYPE_LIST, ListVal: listVal}
+		return &Field{Type: TYPE_LIST, ListVal: listVal}
 	} else {
 		fmt.Println("Property value didn't match any types")
-		return Field{}
+		return &Field{}
 	}
 }
 
 func evalField(event_json map[string]interface{}, field IField) interface{} {
-	if f, ok := field.(Field); ok {
+	if f, ok := field.(*Field); ok {
 		if _, ok := event_json[field.GetName()]; ok {
 			return event_json[f.GetName()]
 		} else {
 			// fmt.Printf("No field %s in row %s\n", field.GetName(), event_json)
 			return nil
 		}
-	} else if itr, ok := field.(FieldItr); ok {
+	} else if itr, ok := field.(*FieldItr); ok {
 		collection := evalField(event_json, itr.Collection)
 		if collection != nil {
 			if collection, ok := collection.([]interface{}); ok {
@@ -170,7 +148,7 @@ func evalField(event_json map[string]interface{}, field IField) interface{} {
 				panic(fmt.Sprintf("Expected evalField to return a list, instead got %s (type %s)", collection, reflect.TypeOf(collection)))
 			}
 		}
-	} else if agg, ok := field.(Aggregator); ok {
+	} else if agg, ok := field.(*Aggregator); ok {
 		if collection, ok := evalField(event_json, agg.Target).([]interface{}); ok {
 			switch agg.Method {
 			case AGG_SUM:
@@ -205,7 +183,7 @@ func _map(event string, mapper Statement) {
 
 		var match bool = true
 		for _, condition := range mapper.Conditions {
-			if !_eval(event_json, condition) {
+			if !_eval(row, condition) {
 				match = false
 			}
 		}
@@ -240,6 +218,17 @@ func _reduce(reducer ReduceStatement) {
 	for key, data := range reduced {
 		for _, field := range reducer.GetFields() {
 			reduced[key][field.GetName()] = evalField(data, field)
+		}
+
+		var match bool = true
+		for _, condition := range reducer.Conditions {
+			if !_eval(data, condition) {
+				match = false
+			}
+		}
+
+		if !match {
+			delete(reduced, key)
 		}
 	}
 }
