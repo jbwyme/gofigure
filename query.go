@@ -305,7 +305,7 @@ func main() {
 	for _, f := range files {
 		if startFile <= f.Name() && f.Name() <= endFile {
 			if file, err := os.Open(dirname + f.Name()); err == nil {
-				go scanFile(file, mapper)
+				scanFile(file, mapper)
 			} else {
 				log.Fatal(err)
 			}
