@@ -16,7 +16,8 @@ const (
 type AggregateMethod string
 
 const (
-	AGG_SUM = "SUM"
+	AGG_SUM   = "SUM"
+	AGG_COUNT = "COUNT"
 )
 
 type IField interface {
@@ -167,9 +168,15 @@ func tokenToField(tok Token, lit string) (*Field, error) {
 
 func (p *Parser) parseField(stmt IStatement) (IField, error) {
 	tok, field := p.scanIgnoreWhitespace()
-	if tok == SUM {
+	if tok == SUM || tok == COUNT {
+		var m AggregateMethod
+		if tok == SUM {
+			m = AGG_SUM
+		} else if tok == COUNT {
+			m = AGG_COUNT
+		}
 		if targetField, err := p.parseField(stmt); err == nil {
-			return &Aggregator{Field: Field{Name: targetField.GetName()}, Method: AGG_SUM, Target: targetField}, nil
+			return &Aggregator{Field: Field{Name: targetField.GetName()}, Method: m, Target: targetField}, nil
 		} else {
 			return nil, err
 		}

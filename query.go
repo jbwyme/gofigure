@@ -187,6 +187,8 @@ func evalField(event_json map[string]interface{}, field IField) interface{} {
 					}
 				}
 				return sum
+			case AGG_COUNT:
+				return len(collection)
 			default:
 				panic(fmt.Sprintf("No aggregate method found for %d", agg.Method))
 			}

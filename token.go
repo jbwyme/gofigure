@@ -4,48 +4,48 @@ package main
 type Token int
 
 const (
-    // Special tokens
-    ILLEGAL Token = iota
-    EOF
-    WS
+	// Special tokens
+	ILLEGAL Token = iota
+	EOF
+	WS
 
-    // Literals
-    STRING
-    NUMBER
-    IDENT
-    
-    // Types
-    TYPE_INT
-    TYPE_NIL
-    TYPE_STRING
-    TYPE_FLOAT
-    TYPE_PROPERTY
-    TYPE_LIST
+	// Literals
+	STRING
+	NUMBER
+	IDENT
 
-    // Operators
-    ADD         // +
-    SUBTRACT    // -
-    MULTIPLY    // *
-    DIVIDE      // /
-    EQ          // =
-    NOT_EQ      // !=
-    GT          // >
-    LT          // <
-    GTE         // >=
-    LTE         // <=
-    AND         // and
+	// Types
+	TYPE_INT
+	TYPE_NIL
+	TYPE_STRING
+	TYPE_FLOAT
+	TYPE_PROPERTY
+	TYPE_LIST
 
-    // Aggregate methods
-    SUM
+	// Operators
+	ADD      // +
+	SUBTRACT // -
+	MULTIPLY // *
+	DIVIDE   // /
+	EQ       // =
+	NOT_EQ   // !=
+	GT       // >
+	LT       // <
+	GTE      // >=
+	LTE      // <=
+	AND      // and
 
-    // Misc characters
-    COMMA    // ,
+	// Aggregate methods
+	SUM
+	COUNT
 
-    // Keywords
-    MAP
-    REDUCE
-    ON
-    WHERE
-    IN
+	// Misc characters
+	COMMA // ,
+
+	// Keywords
+	MAP
+	REDUCE
+	ON
+	WHERE
+	IN
 )
-
