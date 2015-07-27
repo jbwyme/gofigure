@@ -148,6 +148,30 @@ func evalField(event_json map[string]interface{}, field IField) interface{} {
 				panic(fmt.Sprintf("Expected evalField to return a list, instead got %s (type %s)", collection, reflect.TypeOf(collection)))
 			}
 		}
+	} else if exp, ok := field.(*BinaryExpr); ok {
+		left := evalField(event_json, exp.Left)
+		right := evalField(event_json, exp.Right)
+		switch exp.Operator {
+		case MULTIPLY:
+			var l float64 = 0
+			var r float64 = 0
+			if lInt, ok := left.(int); ok {
+				l = float64(lInt)
+			} else if lFloat, ok := left.(float64); ok {
+				l = lFloat
+			} else {
+				// fmt.Printf("%s is not an int or float", left)
+			}
+
+			if rInt, ok := right.(int); ok {
+				r = float64(rInt)
+			} else if rFloat, ok := right.(float64); ok {
+				r = rFloat
+			} else {
+				// fmt.Printf("%s is not an int or float", right)
+			}
+			return l * r
+		}
 	} else if agg, ok := field.(*Aggregator); ok {
 		if collection, ok := evalField(event_json, agg.Target).([]interface{}); ok {
 			switch agg.Method {
@@ -233,6 +257,19 @@ func _reduce(reducer ReduceStatement) {
 	}
 }
 
+func scanFile(file *os.File, mapper *Statement) {
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		_map(scanner.Text(), *mapper)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	file.Close()
+}
+
 func main() {
 	queryPtr := flag.String("query", "", "Query to run. E.g. \"MAP field_1, field_2 REDUCE ON field_1\"")
 	startPtr := flag.Int64("start", 0, "Start date (in seconds)")
@@ -268,16 +305,7 @@ func main() {
 	for _, f := range files {
 		if startFile <= f.Name() && f.Name() <= endFile {
 			if file, err := os.Open(dirname + f.Name()); err == nil {
-				scanner := bufio.NewScanner(file)
-				for scanner.Scan() {
-					_map(scanner.Text(), *mapper)
-				}
-
-				if err = scanner.Err(); err != nil {
-					log.Fatal(err)
-				}
-
-				file.Close()
+				go scanFile(file, mapper)
 			} else {
 				log.Fatal(err)
 			}

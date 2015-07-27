@@ -63,6 +63,13 @@ type FieldItr struct {
 	Collection IField
 }
 
+type BinaryExpr struct {
+	Field
+	Left     IField
+	Operator Token
+	Right    IField
+}
+
 type Condition struct {
 	left  IField
 	op    Token
@@ -172,6 +179,12 @@ func (p *Parser) parseField(stmt IStatement) (IField, error) {
 		if tok == IN {
 			if collectionField, err := p.parseField(stmt); err == nil {
 				return &FieldItr{Field: *fieldNode, Collection: collectionField, Operator: OP_IN}, nil
+			} else {
+				return nil, err
+			}
+		} else if tok == MULTIPLY {
+			if operandField, err := p.parseField(stmt); err == nil {
+				return &BinaryExpr{Left: fieldNode, Right: operandField, Operator: tok}, nil
 			} else {
 				return nil, err
 			}
