@@ -225,7 +225,15 @@ func _reduce(reducer ReduceStatement) {
 		if ok {
 			if _, ok := reduced[key_val]; !ok {
 				reduced[key_val] = make(map[string]interface{})
+				reduced[key_val]["_count"] = 0
 			}
+
+			count := reduced[key_val]["_count"]
+			if countInt, ok := count.(int); ok {
+				countInt += 1
+				reduced[key_val]["_count"] = countInt
+			}
+
 			for field, val := range row {
 				if field != reducer.Key {
 					if _, ok := reduced[key_val][field]; !ok {
